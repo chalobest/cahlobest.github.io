@@ -38,7 +38,7 @@
         });
 
         // Add geolocate control to the map.
-        map.addControl(
+        const geolocate =
             new mapboxgl.GeolocateControl({
                 positionOptions: {
                     enableHighAccuracy: true
@@ -48,7 +48,11 @@
                 // Draw an arrow next to the location dot to indicate which direction the device is heading.
                 showUserHeading: true
             })
-        );
+        // Add the control to the map.
+        map.addControl(geolocate);
+        map.on('load', () => {
+            geolocate.trigger();
+        });
     </script>
 
 </body>
