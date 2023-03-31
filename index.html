@@ -51,8 +51,33 @@
         // Add the control to the map.
         map.addControl(geolocate);
         map.on('load', () => {
+
+            // Trigger geolocate
             geolocate.trigger();
+
+            map.on('click', (e) => {
+                // Set `bbox` as 5px reactangle area around clicked point.
+                const bbox = [
+                    [e.point.x - 5, e.point.y - 5],
+                    [e.point.x + 5, e.point.y + 5]
+                ];
+                // Find features intersecting the bounding box.
+                const selectedFeatures = map.queryRenderedFeatures(bbox, {
+                    layers: ['bus-routes']
+                });
+
+                const ids = selectedFeatures.map(
+                    (feature) => feature.properties.id
+                );
+                // Set a filter matching selected features by FIPS codes
+                // to activate the 'counties-highlighted' layer.
+                map.setFilter('bus-routes', ids.length ? ['in', 'id', ...ids] : null);
+                map.setFilter('bus-routes label', ids.length ? ['in', 'id', ...ids] : null);
+            });
+
+
         });
+
     </script>
 
 </body>
