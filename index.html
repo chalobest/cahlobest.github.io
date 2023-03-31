@@ -73,6 +73,9 @@
                 // to activate the 'counties-highlighted' layer.
                 map.setFilter('bus-routes', ids.length ? ['in', 'id', ...ids] : null);
                 map.setFilter('bus-routes label', ids.length ? ['in', 'id', ...ids] : null);
+                map.setFilter('bus-routes selected', ids.length ? ['in', 'id', ...ids] : null);
+                map.setFilter('bus-routes selected label heading', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
+                map.setFilter('bus-routes selected label info', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
             });
 
 
