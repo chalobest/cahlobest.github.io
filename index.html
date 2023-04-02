@@ -31,7 +31,7 @@
         }
 
         #map-overlay>div {
-            padding: 10px
+            padding: 0 10px
         }
 
         #map-overlay li span {
@@ -210,7 +210,8 @@
     `
             }
 
-            etaHtml += `<p>${stopFeature.properties.route_list}</p>`
+            etaHtml += `<h5>Terminating routes</h5>${stopFeature.properties.terminal_route_names}`
+            etaHtml += `<h5>All routes</h5>${stopFeature.properties.route_names}`
             stopEtaDiv.innerHTML = etaHtml
 
             })
