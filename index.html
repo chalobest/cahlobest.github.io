@@ -3,10 +3,11 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Display a map on a webpage</title>
+    <title>Chalo - BEST Mumbai bus route explorer</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.13.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.13.0/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -19,21 +20,57 @@
             bottom: 0;
             width: 100%;
         }
+
+        #map-overlay {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.653);
+            max-height: 50%;
+            overflow: scroll;
+        }
+
+        #map-overlay>div {
+            padding: 10px
+        }
+
+        #map-overlay li span {
+            margin-left: 5px;
+        }
+
+        #map-overlay li span:first-child {
+            font-weight: bold;
+        }
     </style>
 </head>
 
 <body>
     <div id="map"></div>
+    <div id="map-overlay">
+        <div id="stop-eta">
+            <h3 class="stop">Nirmal Lifestyle</h4>
+                <h4 class="route">A-391</h5>
+                    <ul>
+                        <li class="direction">Khindipada<span>3min</span><span>10min</span><span>12min</span></li>
+                        <li class="direction">Mulund Station<span>3min</span><span>10min</span><span>12min</span></li>
+                    </ul>
+        </div>
+    </div>
     <script>
 
         mapboxgl.accessToken = 'pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiemdYSVVLRSJ9.g3lbg_eN0kztmsfIPxa9MQ';
+
+        // Set bounds to Mumbai.
+        const bounds = [[72.39674, 18.82311], [73.41535, 19.44571]]
+
         const map = new mapboxgl.Map({
             container: 'map', // container ID
             // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
             style: 'mapbox://styles/planemad/clfuxjmx7002k01nxn4o2cbla', // style URL
             center: [72.86, 19.1], // starting position [lng, lat]
             zoom: 10, // starting zoom
-            hash: true
+            hash: true,
+            maxBounds: bounds // Set the map's geographical boundaries.
 
         });
 
@@ -50,36 +87,266 @@
             })
         // Add the control to the map.
         map.addControl(geolocate);
+
         map.on('load', () => {
 
-            // Trigger geolocate
-            geolocate.trigger();
+            // Trigger geolocate if no url hash location
+            if (window.location.href.indexOf('#') === -1) {
+                geolocate.trigger();
+            }
 
-            map.on('click', (e) => {
-                // Set `bbox` as 5px reactangle area around clicked point.
-                const bbox = [
-                    [e.point.x - 5, e.point.y - 5],
-                    [e.point.x + 5, e.point.y + 5]
-                ];
-                // Find features intersecting the bounding box.
-                const selectedFeatures = map.queryRenderedFeatures(bbox, {
-                    layers: ['bus-routes']
-                });
-
-                const ids = selectedFeatures.map(
-                    (feature) => feature.properties.id
-                );
-                // Set a filter matching selected features by FIPS codes
-                // to activate the 'counties-highlighted' layer.
-                map.setFilter('bus-routes', ids.length ? ['in', 'id', ...ids] : null);
-                map.setFilter('bus-routes label', ids.length ? ['in', 'id', ...ids] : null);
-                map.setFilter('bus-routes selected', ids.length ? ['in', 'id', ...ids] : null);
-                map.setFilter('bus-routes selected label heading', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
-                map.setFilter('bus-routes selected label info', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
-            });
-
+            if (map.getZoom() > 14) {
+                findNearestStops()
+            }
 
         });
+
+        // Find nearest stops after the map is moved and zoomed in
+        map.on('moveend', () => {
+            if (map.getZoom() > 14) {
+                findNearestStops()
+            }
+        })
+
+        map.on('click', (e) => {
+            // Set `bbox` as 5px reactangle area around clicked point.
+            const bbox = [
+                [e.point.x - 5, e.point.y - 5],
+                [e.point.x + 5, e.point.y + 5]
+            ];
+            // Find features intersecting the bounding box.
+            const selectedFeatures = map.queryRenderedFeatures(bbox, {
+                layers: ['bus-routes']
+            });
+
+            const ids = selectedFeatures.map(
+                (feature) => feature.properties.id
+            );
+            // Set a filter matching selected features by FIPS codes
+            // to activate the 'counties-highlighted' layer.
+            map.setFilter('bus-routes', ids.length ? ['in', 'id', ...ids] : null);
+            map.setFilter('bus-routes label', ids.length ? ['in', 'id', ...ids] : null);
+            map.setFilter('bus-routes selected', ids.length ? ['in', 'id', ...ids] : null);
+            map.setFilter('bus-routes selected label heading', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
+            map.setFilter('bus-routes selected label info', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
+        });
+
+        function findNearestStops() {
+            // Get the current map center
+            var center = map.getCenter();
+
+            // Query the 'bus-stop' layer for rendered features
+            var features = map.queryRenderedFeatures({ layers: ['bus-stops'] });
+
+            // Find the nearest bus stop point feature to the current center
+            var nearest = turf.nearestPoint([center.lng, center.lat], turf.featureCollection(features));
+
+            // Get the coordinates of the nearest bus stop point feature
+            var nearestCoords = nearest.geometry.coordinates;
+
+            console.log(nearest.properties.name)
+            findStopEta(nearest)
+        }
+
+        function findStopEta(stopFeature) {
+
+
+            const stopEtaDiv = document.getElementById("stop-eta");
+
+            // fetch(`https://chalo.com/app/api/vasudha/stop/mumbai/${stopFeature.properties.id}`)
+            //     .then((response) => response.json())
+            //     .then((data) => {
+
+            data = {
+                "XvaVJaVh": {
+                    "-NQB66H1V-_ucXVkRS1o": "{\"eta\":2140,\"vNo\":\"6547\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"6\",\"tS\":1678461969000}",
+                    "-NQ1syemIfXapn05lJ9k": "{\"eta\":2946,\"vNo\":\"5344\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"6\",\"tS\":1678308255000}"
+                },
+                "JvCxVBbe": {},
+                "iJEgZGhV": {
+                    "-NS2B0W5FqAp3tl9mGCU": "{\"eta\":-1,\"vNo\":\"6646\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"3\",\"tS\":1680460231000}",
+                    "-NQGliUjvUuQ7UpGY2eg": "{\"eta\":-1,\"vNo\":\"6647\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"3\",\"tS\":1678557245000}"
+                },
+                "icXahjOp": {
+                    "-NQE-F2lJfITbQmQqXht": "{\"eta\":1762,\"vNo\":\"7691\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"9\",\"tS\":1678512843000}",
+                    "-NQFQWlka_raQB4iUPMf": "{\"eta\":1841,\"vNo\":\"7661\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"9\",\"tS\":1678535645000}"
+                },
+                "oYrdKwnQ": {},
+                "AQDKDVLD": {
+                    "-NS-6U6cjNm4KGjxxdZH": "{\"eta\":-1,\"vNo\":\"6600\",\"ag\":\"BEST\",\"dest\":\"R C Church\",\"rN\":\"103\",\"tS\":1680463330000}",
+                    "-NRxEjMY9UFIiZwa-HVS": "{\"eta\":-1,\"vNo\":\"6547\",\"ag\":\"BEST\",\"dest\":\"R C Church\",\"rN\":\"103\",\"tS\":1680360743000}",
+                    "-NQHwrhvs3VCo-2h7DO1": "{\"eta\":-1,\"vNo\":\"6548\",\"ag\":\"BEST\",\"dest\":\"R C Church\",\"rN\":\"103\",\"tS\":1678576894000}",
+                    "-NRyTKUgpqW42j4Lgd7V": "{\"eta\":-1,\"vNo\":\"6545\",\"ag\":\"BEST\",\"dest\":\"R C Church\",\"rN\":\"103\",\"tS\":1680463111000}"
+                },
+                "HNemNIsQ": {},
+                "VwcAVkgp": {
+                    "-NQYEMhMHUmUhxBu4OFQ": "{\"eta\":1376,\"vNo\":\"8014\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"2\",\"tS\":1678851311000}",
+                    "-NRO2GGiNAVdtBNLX-fE": "{\"eta\":-1,\"vNo\":\"4003\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"2\",\"tS\":1679770584000}",
+                    "-NRSmjBXYMdRiLkWfl7B": "{\"eta\":571,\"vNo\":\"7962\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"2\",\"tS\":1679834143000}",
+                    "-NRx7OinLcmqbr6d0IoS": "{\"eta\":-1,\"vNo\":\"4003\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"2\",\"tS\":1680361698000}",
+                    "-NRR6wu6z23LTHDDrJ2e": "{\"eta\":3806,\"vNo\":\"7998\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"2\",\"tS\":1679804406000}",
+                    "-NQFtINwoOCq-wgCvy9J": "{\"eta\":-1,\"vNo\":\"4010\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"2\",\"tS\":1678542762000}"
+                },
+                "WOfVNTYl": {
+                    "-NS2gWP4Uz8bPCQR5OaQ": "{\"eta\":2090,\"vNo\":\"7821\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"C-1\",\"tS\":1680468334000}",
+                    "-NS2Q4xs2N98nbxomC67": "{\"eta\":2091,\"vNo\":\"7853\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"C-1\",\"tS\":1680468467000}",
+                    "-NQ7tbR4qXWOwM7fsYku": "{\"eta\":1627,\"vNo\":\"7873\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"C-1\",\"tS\":1678408069000}",
+                    "-NQmz4dlE9kDmy-ZLKeS": "{\"eta\":-1,\"vNo\":\"7822\",\"ag\":\"BEST\",\"dest\":\"Electric House Or Colaba Depot\",\"rN\":\"C-1\",\"tS\":1679114103000}"
+                },
+                "AoKzSQHF": {
+                    "-NPdpe7E5xPJCXg2JJg6": "{\"eta\":-1,\"vNo\":\"6808\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"A-124\",\"tS\":1677890474000}",
+                    "-NQMB06Ot4I6qdBnYAf0": "{\"eta\":4520,\"vNo\":\"6824\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"A-124\",\"tS\":1678654000000}",
+                    "-NPp128atMSECiiTFjtN": "{\"eta\":3909,\"vNo\":\"6806\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"A-124\",\"tS\":1678074992000}",
+                    "-NPkdb_km0onj13gg_Gy": "{\"eta\":5253,\"vNo\":\"6812\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"A-124\",\"tS\":1678001450000}"
+                },
+                "nUlOgZFN": {},
+                "XcKDdqyw": {},
+                "iVwaswTU": {},
+                "ksVnfpNi": {},
+                "sggSwRCw": {
+                    "-NQSPN_x61rMyav5HAo7": "{\"eta\":2134,\"vNo\":\"5382\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"19\",\"tS\":1678752344000}"
+                },
+                "OUmuTaiW": {
+                    "-NQEGNeXGmYjmAvG9nfw": "{\"eta\":1079,\"vNo\":\"6237\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"A-25\",\"tS\":1678515597000}",
+                    "-NPwU4pXrOJPdmJDnlKU": "{\"eta\":848,\"vNo\":\"6330\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"A-25\",\"tS\":1678200034000}",
+                    "-NPp7txvqvCn_sgUXfdb": "{\"eta\":1559,\"vNo\":\"6236\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"A-25\",\"tS\":1678077331000}",
+                    "-NQ3ox2U_jBS_IbWK9nP": "{\"eta\":955,\"vNo\":\"6247\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"A-25\",\"tS\":1678340345000}",
+                    "-NPzI3UCIKGEFOJoIayP": "{\"eta\":377,\"vNo\":\"6230\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"A-25\",\"tS\":1678249008000}"
+                },
+                "zIvRYuMi": {
+                    "-NQGyzyIv46bIT2_ZUcq": "{\"eta\":-1,\"vNo\":\"6513\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"25\",\"tS\":1678561176000}",
+                    "-NROkaFnPu8R-3RrR6tK": "{\"eta\":-1,\"vNo\":\"6507\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"25\",\"tS\":1679765716000}",
+                    "-NPrnhPqJyxyXhFKJfH6": "{\"eta\":-1,\"vNo\":\"6509\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"25\",\"tS\":1678131892000}",
+                    "-NROmR4RlQdEcvn6FOD1": "{\"eta\":-1,\"vNo\":\"6511\",\"ag\":\"BEST\",\"dest\":\"Backbay Bus Depot\",\"rN\":\"25\",\"tS\":1679766829000}"
+                },
+                "LvVWOiks": {
+                    "-NRH7n2t6eXHviIxTugO": "{\"eta\":5790,\"vNo\":\"1482\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"8\",\"tS\":1679637284000}",
+                    "-NQ0tqzEkTRai9D4kyyl": "{\"eta\":2245,\"vNo\":\"1403\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"8\",\"tS\":1678290772000}",
+                    "-NQdWsDt4BDKh2RB3VcU": "{\"eta\":2361,\"vNo\":\"1920\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"8\",\"tS\":1678958537000}",
+                    "-NQ9uS6ubc2bhL4rxGQ4": "{\"eta\":2967,\"vNo\":\"1837\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"8\",\"tS\":1678444445000}",
+                    "-NQnENEyO-FYVuD3NmG_": "{\"eta\":4549,\"vNo\":\"1858\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"8\",\"tS\":1679119085000}",
+                    "-NR4OLDhhp5l9Q3vXNgg": "{\"eta\":5374,\"vNo\":\"1482\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"8\",\"tS\":1679430243000}",
+                    "-NQE4sshpbfvTXMZEc7L": "{\"eta\":400,\"vNo\":\"1485\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"8\",\"tS\":1678514470000}"
+                },
+                "kVarsDSJ": {},
+                "SsPDhymL": {},
+                "AfSNwMaI": {},
+                "QbGiEgFg": {
+                    "-NQTW22ofK93iciUFhy-": "{\"eta\":301,\"vNo\":\"6514\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"3\",\"tS\":1678771934000}"
+                },
+                "CrXeFIBs": {},
+                "nNvNWhVN": {},
+                "DrswiEQV": {},
+                "OVKwJtZx": {},
+                "zMDGJPIR": {
+                    "-NPpv4XQXch35MU8DVFL": "{\"eta\":4006,\"vNo\":\"7966\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1678171977000}",
+                    "-NR5MXugSOLUzZStn9R7": "{\"eta\":3790,\"vNo\":\"8010\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1679439101000}",
+                    "-NR-IYumvY2G4gzobjE9": "{\"eta\":3856,\"vNo\":\"7962\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1679338935000}",
+                    "-NR1s_yCmzIE6N13TvXt": "{\"eta\":3952,\"vNo\":\"7944\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1679381402000}",
+                    "-NPpp3JcGk6lPCU0rESx": "{\"eta\":337,\"vNo\":\"7939\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1678091635000}",
+                    "-NS1xu-4Ze0jiVNxPzB6": "{\"eta\":3785,\"vNo\":\"7924\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1680462647000}",
+                    "-NPjenAAhqoGmjypUBmF": "{\"eta\":2416,\"vNo\":\"8009\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1677985691000}",
+                    "-NQQs4FQax0nPptVNKDc": "{\"eta\":3788,\"vNo\":\"7961\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1678727168000}",
+                    "-NS1oJsXcDoejOrL34Mp": "{\"eta\":3851,\"vNo\":\"7964\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1680453729000}",
+                    "-NRPNNovxwRKoKmixvfu": "{\"eta\":3789,\"vNo\":\"7989\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1679775173000}",
+                    "-NQpXsbWReGN3PFjfAv1": "{\"eta\":3844,\"vNo\":\"7981\",\"ag\":\"BEST\",\"dest\":\"Navy Nagar Colaba\",\"rN\":\"11\",\"tS\":1679158014000}"
+                },
+                "uMVQOWLQ": {
+                    "-NS2g_0i_VQGMH9U7ppV": "{\"eta\":5117,\"vNo\":\"7202\",\"ag\":\"BEST\",\"dest\":\"Dr Shyamaprasad Mukherji Chowk Or Museum\",\"rN\":\"A-21\",\"tS\":1680468349000}",
+                    "-NPzE_MfxlkYdYgnq0JF": "{\"eta\":5031,\"vNo\":\"7191\",\"ag\":\"BEST\",\"dest\":\"Dr Shyamaprasad Mukherji Chowk Or Museum\",\"rN\":\"A-21\",\"tS\":1678261106000}",
+                    "-NS2YHsR7xxqCl9RMJ5V": "{\"eta\":5118,\"vNo\":\"7200\",\"ag\":\"BEST\",\"dest\":\"Dr Shyamaprasad Mukherji Chowk Or Museum\",\"rN\":\"A-21\",\"tS\":1680466005000}",
+                    "-NS2--FwfQwJOWA-Zt6k": "{\"eta\":5119,\"vNo\":\"7187\",\"ag\":\"BEST\",\"dest\":\"Dr Shyamaprasad Mukherji Chowk Or Museum\",\"rN\":\"A-21\",\"tS\":1680456975000}",
+                    "-NS2hjt8B0nKD2H99zsZ": "{\"eta\":5114,\"vNo\":\"7195\",\"ag\":\"BEST\",\"dest\":\"Dr Shyamaprasad Mukherji Chowk Or Museum\",\"rN\":\"A-21\",\"tS\":1680468466000}"
+                },
+                "SupDEFhF": {},
+                "TMTSXwrT": {},
+                "wJtvoRRG": {},
+                "BTzqyHIZ": {},
+                "fuBngkvm": {},
+                "MpYXlzTH": {},
+                "dtoVCSzH": {},
+                "RNajznrw": {},
+                "mZZRrkjt": {
+                    "-NRLrpc2WE7gSHtq6Ene": "{\"eta\":3313,\"vNo\":\"6786\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"A-19\",\"tS\":1679717628000}",
+                    "-NQchS_DNahiexek1Qfe": "{\"eta\":5408,\"vNo\":\"6739\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"A-19\",\"tS\":1678942007000}",
+                    "-NQohm1W8LrSFFo-tg1k": "{\"eta\":688,\"vNo\":\"6798\",\"ag\":\"BEST\",\"dest\":\"Mantralaya\",\"rN\":\"A-19\",\"tS\":1679144616000}"
+                },
+                "eqVlWobJ": {},
+                "pDIcMcae": {},
+                "xEyQSsPJ": {
+                    "-NS2aLtvrGSQ5aMprmAa": "{\"eta\":7286,\"vNo\":\"7868\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"51\",\"tS\":1680466561000}",
+                    "-NRz7Yh5lvsV3LZPCOoe": "{\"eta\":7290,\"vNo\":\"7865\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"51\",\"tS\":1680391451000}",
+                    "-NS2RsTKmIp4JFEFhKuR": "{\"eta\":7283,\"vNo\":\"7895\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"51\",\"tS\":1680468453000}",
+                    "-NS2fuh3Z70N58gmTOku": "{\"eta\":7287,\"vNo\":\"7904\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"51\",\"tS\":1680468474000}",
+                    "-NRkdtUmH8k5-016ksJM": "{\"eta\":6664,\"vNo\":\"7898\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"51\",\"tS\":1680151843000}",
+                    "-NQz_n_15wf3N7_pz2hA": "{\"eta\":4870,\"vNo\":\"7826\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"51\",\"tS\":1679326981000}",
+                    "-NQcSBF_a_lGLTHNuCyC": "{\"eta\":399,\"vNo\":\"7881\",\"ag\":\"BEST\",\"dest\":\"Colaba Bus Station\",\"rN\":\"51\",\"tS\":1678940536000}"
+                }
+            }
+
+            // Find all routes in map view
+             // Find features intersecting the bounding box.
+             const busRoutes = map.queryRenderedFeatures({
+                layers: ['bus-routes']
+            });
+
+            let stopEtas = {}
+            // Loop through each key in the object
+            for (const routeId in data) {
+
+                const route = busRoutes.filter( d => d.properties.id == routeId )[0]
+
+                if ( typeof route == 'undefined')
+                    continue
+
+                const routeName = route.properties.name
+
+                console.log(routeId,routeName)
+
+                stopEtas[routeName] = []
+
+                for (const tripId in data[routeId]) {
+
+                    const val = JSON.parse(data[routeId][tripId])
+
+                    // Skip empty eta
+                    if(val.eta > -1){
+
+                        const newObj = {
+                        dest: val.dest,
+                        eta: val.eta
+                    };
+
+                    // Add the new object to the result array
+                    stopEtas[routeName].push(newObj);
+
+                    }
+                }
+            }
+
+            console.log(stopEtas)
+
+            let etaHtml = `<h3 class="stop">${stopFeature.properties.name}</h3>`
+
+            for (const routeName in stopEtas) {
+                etaHtml += `
+            <h4 class="route">${routeName}</h4>
+            <ul>
+                ${stopEtas[routeName].map((eta) => `<li>${eta.dest} <span>${Math.floor(eta.eta / 60)}m</span></li>`).join("")}
+            </ul>
+    `
+            }
+
+            etaHtml += `<p>${stopFeature.properties.route_list}</p>`
+            stopEtaDiv.innerHTML = etaHtml
+
+            // })
+            // .catch((error) => {
+            //     console.error(error);
+            //     stopEtaDiv.innerHTML = "<p>Error fetching stop ETA data.</p>";
+            // });
+
+        }
 
     </script>
 
