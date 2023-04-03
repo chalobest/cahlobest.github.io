@@ -58,7 +58,7 @@
     </div>
     <script>
 
-        mapboxgl.accessToken = 'pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiemdYSVVLRSJ9.g3lbg_eN0kztmsfIPxa9MQ';
+        mapboxgl.accessToken = 'pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiY2xnMG11YjdjMTBseTNzcXJ6bGp4b3BvZSJ9.vUb221BNvz-mtF3rNAEMhw';
 
         // Set bounds to Mumbai.
         const bounds = [[72.39674, 18.82311], [73.41535, 19.44571]]
@@ -96,7 +96,7 @@
             }
 
             if (map.getZoom() > 14) {
-                findNearestStops()
+                showBusStopsAtPoint()
             }
 
         });
@@ -104,47 +104,69 @@
         // Find nearest stops after the map is moved and zoomed in
         map.on('moveend', () => {
             if (map.getZoom() > 14) {
-                findNearestStops()
+                showBusStopsAtPoint()
             }
         })
 
         map.on('click', (e) => {
-            // Set `bbox` as 5px reactangle area around clicked point.
-            const bbox = [
-                [e.point.x - 5, e.point.y - 5],
-                [e.point.x + 5, e.point.y + 5]
+           
+            showBusRoutesAtPoint(e.point, 5)
+            showBusStopsAtPoint(e.lngLat)
+            
+        });
+
+        function showBusRoutesAtPoint(point, bufferPixels){
+
+             // Set `bbox` as 5px reactangle area around clicked point.
+             const bbox = [
+                [point.x - bufferPixels, point.y - bufferPixels],
+                [point.x + bufferPixels, point.y + bufferPixels]
             ];
             // Find features intersecting the bounding box.
             const selectedFeatures = map.queryRenderedFeatures(bbox, {
                 layers: ['bus-routes']
             });
 
-            const ids = selectedFeatures.map(
+            const route_ids = selectedFeatures.map(
                 (feature) => feature.properties.id
             );
+
+            filterBusRoutes(route_ids)
+        }
+
+        function filterBusRoutes(route_ids){
             // Set a filter matching selected features by FIPS codes
             // to activate the 'counties-highlighted' layer.
-            map.setFilter('bus-routes', ids.length ? ['in', 'id', ...ids] : null);
-            map.setFilter('bus-routes label', ids.length ? ['in', 'id', ...ids] : null);
-            map.setFilter('bus-routes selected', ids.length ? ['in', 'id', ...ids] : null);
-            map.setFilter('bus-routes selected label heading', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
-            map.setFilter('bus-routes selected label info', ids.length ? ['in', 'id', ...ids] : ['in', 'id', null]);
-        });
+            map.setFilter('bus-routes', route_ids.length ? ['in', 'id', ...route_ids] : null)
+            map.setFilter('bus-routes label', route_ids.length ? ['in', 'id', ...route_ids] : null)
+            map.setFilter('bus-routes selected', route_ids.length ? ['in', 'id', ...route_ids] : null)
+            map.setFilter('bus-routes selected label heading', route_ids.length ? ['in', 'id', ...route_ids] : ['in', 'id', null])
+            map.setFilter('bus-routes selected label info', route_ids.length ? ['in', 'id', ...route_ids] : ['in', 'id', null])
+        }
 
-        function findNearestStops() {
-            // Get the current map center
-            var center = map.getCenter();
+        function filterBusStops(stop_ids){
+            map.setFilter('bus-stops selected', stop_ids.length ? ['in', 'id', ...stop_ids] : null)
+        }
+
+        function showBusStopsAtPoint(point) {
+
+            if (typeof point == 'undefined'){
+                point = map.getCenter();
+            }
+
+            console.log(point)
 
             // Query the 'bus-stop' layer for rendered features
-            var features = map.queryRenderedFeatures({ layers: ['bus-stops'] });
+            const features = map.queryRenderedFeatures({ layers: ['bus-stops'] });
 
             // Find the nearest bus stop point feature to the current center
-            var nearest = turf.nearestPoint([center.lng, center.lat], turf.featureCollection(features));
+            const nearest = turf.nearestPoint([point.lng, point.lat], turf.featureCollection(features));
 
             // Get the coordinates of the nearest bus stop point feature
-            var nearestCoords = nearest.geometry.coordinates;
+            const nearestCoords = nearest.geometry.coordinates;
 
-            console.log(nearest.properties.name)
+            filterBusStops([nearest.properties.id])
+
             findStopEta(nearest)
         }
 
@@ -174,8 +196,6 @@
 
                 const routeName = route.properties.name
 
-                console.log(routeId,routeName)
-
                 stopEtas[routeName] = []
 
                 for (const tripId in data[routeId]) {
@@ -186,8 +206,12 @@
                     if(val.eta > -1){
 
                         const newObj = {
+                        route_name : val.rN,
+                        vehicle_no : val.vNo,
                         dest: val.dest,
-                        eta: val.eta
+                        eta: val.eta,
+                        timstamp: val.tS
+
                     };
 
                     // Add the new object to the result array
