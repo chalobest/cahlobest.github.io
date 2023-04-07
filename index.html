@@ -5,9 +5,21 @@
     <meta charset="utf-8">
     <title>Chalo - BEST Mumbai bus route explorer</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+
+    <!-- UIkit CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.16.13/dist/css/uikit.min.css" />
+
+    <!-- UIkit JS -->
+    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.13/dist/js/uikit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.13/dist/js/uikit-icons.min.js"></script>
+
+    <!-- Mapbox GL -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.13.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.13.0/mapbox-gl.js"></script>
+
+    <!-- Turf -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
     <style>
         body {
             margin: 0;
@@ -48,205 +60,12 @@
     <div id="map"></div>
     <div id="map-overlay">
         <div id="stop-eta">
-            <h3 class="stop">Nirmal Lifestyle</h4>
-                <h4 class="route">A-391</h5>
-                    <ul>
-                        <li class="direction">Khindipada<span>3min</span><span>10min</span><span>12min</span></li>
-                        <li class="direction">Mulund Station<span>3min</span><span>10min</span><span>12min</span></li>
-                    </ul>
+            <h3 class="stop">BEST Bus Route Explorer</h4>
+                Select bus stop to view upcoming arrivals
         </div>
     </div>
-    <script>
 
-        mapboxgl.accessToken = 'pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiY2xnMG11YjdjMTBseTNzcXJ6bGp4b3BvZSJ9.vUb221BNvz-mtF3rNAEMhw';
-
-        // Set bounds to Mumbai.
-        const bounds = [[72.39674, 18.82311], [73.41535, 19.44571]]
-
-        const map = new mapboxgl.Map({
-            container: 'map', // container ID
-            // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
-            style: 'mapbox://styles/planemad/clfuxjmx7002k01nxn4o2cbla', // style URL
-            center: [72.86, 19.1], // starting position [lng, lat]
-            zoom: 10, // starting zoom
-            hash: true,
-            maxBounds: bounds // Set the map's geographical boundaries.
-
-        });
-
-        // Add geolocate control to the map.
-        const geolocate =
-            new mapboxgl.GeolocateControl({
-                positionOptions: {
-                    enableHighAccuracy: true
-                },
-                // When active the map will receive updates to the device's location as it changes.
-                trackUserLocation: true,
-                // Draw an arrow next to the location dot to indicate which direction the device is heading.
-                showUserHeading: true
-            })
-        // Add the control to the map.
-        map.addControl(geolocate);
-
-        map.on('load', () => {
-
-            // Trigger geolocate if no url hash location
-            if (window.location.href.indexOf('#') === -1) {
-                geolocate.trigger();
-            }
-
-            if (map.getZoom() > 14) {
-                showBusStopsAtPoint()
-            }
-
-        });
-
-        // Find nearest stops after the map is moved and zoomed in
-        map.on('moveend', () => {
-            if (map.getZoom() > 14) {
-                showBusStopsAtPoint()
-            }
-        })
-
-        map.on('click', (e) => {
-           
-            showBusRoutesAtPoint(e.point, 5)
-            showBusStopsAtPoint(e.lngLat)
-            
-        });
-
-        function showBusRoutesAtPoint(point, bufferPixels){
-
-             // Set `bbox` as 5px reactangle area around clicked point.
-             const bbox = [
-                [point.x - bufferPixels, point.y - bufferPixels],
-                [point.x + bufferPixels, point.y + bufferPixels]
-            ];
-            // Find features intersecting the bounding box.
-            const selectedFeatures = map.queryRenderedFeatures(bbox, {
-                layers: ['bus-routes']
-            });
-
-            const route_ids = selectedFeatures.map(
-                (feature) => feature.properties.id
-            );
-
-            filterBusRoutes(route_ids)
-        }
-
-        function filterBusRoutes(route_ids){
-            // Set a filter matching selected features by FIPS codes
-            // to activate the 'counties-highlighted' layer.
-            map.setFilter('bus-routes', route_ids.length ? ['in', 'id', ...route_ids] : null)
-            map.setFilter('bus-routes label', route_ids.length ? ['in', 'id', ...route_ids] : null)
-            map.setFilter('bus-routes selected', route_ids.length ? ['in', 'id', ...route_ids] : null)
-            map.setFilter('bus-routes selected label heading', route_ids.length ? ['in', 'id', ...route_ids] : ['in', 'id', null])
-            map.setFilter('bus-routes selected label info', route_ids.length ? ['in', 'id', ...route_ids] : ['in', 'id', null])
-        }
-
-        function filterBusStops(stop_ids){
-            map.setFilter('bus-stops selected', stop_ids.length ? ['in', 'id', ...stop_ids] : null)
-        }
-
-        function showBusStopsAtPoint(point) {
-
-            if (typeof point == 'undefined'){
-                point = map.getCenter();
-            }
-
-            console.log(point)
-
-            // Query the 'bus-stop' layer for rendered features
-            const features = map.queryRenderedFeatures({ layers: ['bus-stops'] });
-
-            // Find the nearest bus stop point feature to the current center
-            const nearest = turf.nearestPoint([point.lng, point.lat], turf.featureCollection(features));
-
-            // Get the coordinates of the nearest bus stop point feature
-            const nearestCoords = nearest.geometry.coordinates;
-
-            filterBusStops([nearest.properties.id])
-
-            findStopEta(nearest)
-        }
-
-        function findStopEta(stopFeature) {
-
-
-            const stopEtaDiv = document.getElementById("stop-eta");
-
-            fetch(`https://chalo.com/app/api/vasudha/stop/mumbai/${stopFeature.properties.id}`)
-                .then((response) => response.json())
-                .then((data) => {
-
-            // Find all routes in map view
-             // Find features intersecting the bounding box.
-             const busRoutes = map.queryRenderedFeatures({
-                layers: ['bus-routes']
-            });
-
-            let stopEtas = {}
-            // Loop through each key in the object
-            for (const routeId in data) {
-
-                const route = busRoutes.filter( d => d.properties.id == routeId )[0]
-
-                if ( typeof route == 'undefined')
-                    continue
-
-                const routeName = route.properties.name
-
-                stopEtas[routeName] = []
-
-                for (const tripId in data[routeId]) {
-
-                    const val = JSON.parse(data[routeId][tripId])
-
-                    // Skip empty eta
-                    if(val.eta > -1){
-
-                        const newObj = {
-                        route_name : val.rN,
-                        vehicle_no : val.vNo,
-                        dest: val.dest,
-                        eta: val.eta,
-                        timstamp: val.tS
-
-                    };
-
-                    // Add the new object to the result array
-                    stopEtas[routeName].push(newObj);
-
-                    }
-                }
-            }
-
-            console.log(stopEtas)
-
-            let etaHtml = `<h3 class="stop">${stopFeature.properties.name}</h3>`
-
-            for (const routeName in stopEtas) {
-                etaHtml += `
-            <h4 class="route">${routeName}</h4>
-            <ul>
-                ${stopEtas[routeName].map((eta) => `<li>${eta.dest} <span>${Math.floor(eta.eta / 60)}m</span></li>`).join("")}
-            </ul>
-    `
-            }
-
-            etaHtml += `<h5>Terminating routes</h5>${stopFeature.properties.terminal_route_names}`
-            etaHtml += `<h5>All routes</h5>${stopFeature.properties.route_names}`
-            stopEtaDiv.innerHTML = etaHtml
-
-            })
-            .catch((error) => {
-                console.error(error);
-                stopEtaDiv.innerHTML = "<p>Error fetching stop ETA data.</p>";
-            });
-
-        }
-
-    </script>
+    <script src="./app.js"></script>
 
 </body>
 
