@@ -179,16 +179,18 @@ function findStopEta(stopFeature) {
             const sortedTimetable = stopTimetable.filter(d=>d.etas.length).sort((a, b) => b.trip_count - a.trip_count)
 
             sortedTimetable.forEach( route => {
-                etaHtml += `<div>
-                <a class="route uk-button uk-button-default" href=""><b>${route.name}</b></a> To: <b>${route.last_stop_name}</b> From : ${route.first_stop_name} 
+                etaHtml += `<div class="eta">
+                <a class="route uk-button uk-button-default" target="_blank" href="https://chalo.com/app/live-tracking/route-map/${route.id}"><b>${route.name}</b></a> ${route.last_stop_name}
                 </div>`
 
-                route.etas.forEach( eta => {
-                    etaHtml += `<div>
-                <b>${Math.floor(eta.eta_mins / 60)}m</b> updated ${eta.updated_mins}m ago
-                </div>`
+                route.etas.sort(function(a, b){return a.eta_mins - b.eta_mins}).forEach( eta => {
+                    etaHtml += `<span uk-tooltip="Location updated ${eta.updated_mins < 1 ? "now" : eta.updated_mins + "mins ago"} ">
+                <b>${Math.floor(eta.eta_mins / 60)}m</b>${eta.updated_mins > 3 ? '<img width=15 src="./assets/yellow-pulsing-dot.gif">' : '<img width=15 src="./assets/green-pulsing-dot.gif">' }
+                </span>`
 
                 })
+
+                etaHtml += `</div>`
 
             })
 
