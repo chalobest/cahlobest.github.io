@@ -228,7 +228,8 @@ function findStopEta(stopFeature) {
 
             sortedTimetable.forEach(route => {
                 etaHtml += `<div class="eta">
-                <a class="route uk-button uk-button-default" target="_blank" href="https://chalo.com/app/live-tracking/route-map/${route.id}"><b>${route.name}</b></a> ${route.last_stop_name}
+                <a class="route uk-button uk-button-default" target="_blank" href="https://chalo.com/app/live-tracking/route-map/${route.id}"><b>${route.name}</b></a> 
+                <span uk-tooltip="${route.stop_name_list}">${route.last_stop_name}</span>
                 </div><div><a href="https://chalo.com/app/live-tracking/time-table/${route.id}">Timetable</a>`
                 
                 route.etas.sort(function (a, b) { return a.eta_mins - b.eta_mins }).forEach(eta => {
