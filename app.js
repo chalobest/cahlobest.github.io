@@ -75,7 +75,7 @@ map.on('moveend', () => {
 
 map.on('click', (e) => {
 
-    showBusRoutesAtPoint(e.point, 5)
+    showBusRoutesAtPoint(e.point, 30)
     showBusStopsAtPoint(e.lngLat)
 
 });
