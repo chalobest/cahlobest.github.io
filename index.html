@@ -7,15 +7,15 @@
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 
     <!-- UIkit CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.16.13/dist/css/uikit.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.16.15/dist/css/uikit.min.css" />
 
     <!-- UIkit JS -->
-    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.13/dist/js/uikit.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.13/dist/js/uikit-icons.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.15/dist/js/uikit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/uikit@3.16.15/dist/js/uikit-icons.min.js"></script>
 
     <!-- Mapbox GL -->
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.13.0/mapbox-gl.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.13.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
 
     <!-- Turf -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
@@ -24,17 +24,36 @@
         body {
             margin: 0;
             padding: 0;
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            background-image: url(./assets/background.jpg);
         }
 
-        #intro-panel{
-            background-image: url(./background.jpg);
-        }
 
-        #map {
+        #map-container{
             position: absolute;
             top: 50%;
             bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+        }
+        #map {
             width: 100%;
+            height: 100%;
+        }
+        #map-crosshair {
+            position: absolute;
+            top:50%;
+            left:50%;
+            width: 30px;
+            height: 30px;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgb(0, 0, 0);
+            pointer-events: none;
         }
 
         #map-overlay {
@@ -63,20 +82,7 @@
 
 <body>
 
-    <div id="intro-panel" class="uk-modal-full" uk-modal>
-        <div class="uk-modal-dialog">
-            <button class="uk-modal-close-full uk-close-large" type="button" uk-close></button>
-            <div class="uk-grid-collapse uk-child-width-1-2@s uk-flex-middle" uk-grid>
-                <div class="uk-background-cover" style="background-image: url('./background.png');" uk-height-viewport></div>
-                <div class="uk-padding-large">
-                    <h1>चलो Chalo</h1>
-                    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="map"></div>
+    <div id="map-container"> <div id="map"><div id="map-crosshair"></div></div></div>
     <div id="map-overlay">
         <div id="stop-eta">
             <h3 class="stop">BEST Bus Route Explorer</h4>
@@ -87,7 +93,7 @@
     
 
     <script>
-        // UIkit.modal(document.getElementById("intro-panel")).show();
+        UIkit.modal(document.getElementById("intro-panel")).show();
     </script>
 
     <script src="./app.js"></script>
