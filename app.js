@@ -64,7 +64,7 @@ map.on('load', () => {
                 'line-opacity': 1,
                 'line-width': 2
             }
-        });
+        }, 'mumbai-bus-routes label');
     }
 
 });
@@ -100,16 +100,32 @@ function showBusRoutesAtPoint(point, bufferPixels) {
         (feature) => feature.properties.id
     );
 
+    const stop_ids = selectedFeatures.map(
+        (feature) => {
+            let stop_ids = feature.properties.stop_id_list.split()
+            stop_ids.push(feature.properties.first_stop_id)
+            stop_ids.push(feature.properties.last_stop_id)
+            return stop_ids
+        }
+    ).flat(1);
+
     filterBusRoutes(route_ids)
+    filterBusStops(stop_ids)
 }
 
 function filterBusRoutes(route_ids) {
-    // Set a filter matching selected features by FIPS codes
-    // to activate the 'counties-highlighted' layer.
-    map.setFilter('mumbai-bus-routes', route_ids.length ? ['in', 'id', ...route_ids] : null)
-    map.setFilter('mumbai-bus-routes label', route_ids.length ? ['in', 'id', ...route_ids] : null)
+
+    ['mumbai-bus-routes', 'mumbai-bus-routes ac', 'mumbai-bus-routes label', 'mumbai-bus-routes ac label'].forEach(layer =>
+        toggleFilter(layer, route_ids.length ? ["match", ['get', 'id'], [...new Set(route_ids)], true, false] : null)
+        )
+
+        // 'mumbai-bus-routes base' 'mumbai-bus-routes selected'
+    // map.setFilter('mumbai-bus-routes', route_ids.length ? ['in', 'id', ...route_ids] : null)
+    // map.setFilter('mumbai-bus-routes ac', route_ids.length ? ['in', 'id', ...route_ids] : null)
+    // map.setFilter('mumbai-bus-routes label', route_ids.length ? ['in', 'id', ...route_ids] : null)
+    // map.setFilter('mumbai-bus-routes ac label', route_ids.length ? ['in', 'id', ...route_ids] : null)
+    map.setFilter('mumbai-bus-routes base', route_ids.length ? ['in', 'id', ...route_ids] : null)
     map.setFilter('mumbai-bus-routes selected', route_ids.length ? ['in', 'id', ...route_ids] : null)
-    map.setFilter('mumbai-bus-routes label', route_ids.length ? ['in', 'id', ...route_ids] : ['in', 'id', null])
 }
 
 
@@ -120,13 +136,13 @@ function showBusStopsAtPoint(point) {
     }
 
     // Query the 'bus-stop' layer for rendered features
-    let features = map.queryRenderedFeatures({ layers: ['mumbai-bus-stops terminal label','mumbai-bus-stops label'] });
+    let features = map.queryRenderedFeatures({ layers: ['mumbai-bus-stops terminal label', 'mumbai-bus-stops label'] });
 
     // Create a list of the nearest bus stops
     features.forEach(f => f.properties["distance"] = turf.distance([point.lng, point.lat], f.geometry.coordinates))
     appData["nearestStops"] = features.sort((a, b) => a.properties.distance - b.properties.distance).slice(0, 10)
 
-    filterBusStops([appData["nearestStops"][0].properties.id])
+    highlightBusStop(appData["nearestStops"][0].properties.id)
 
     showWalkingRoute(new mapboxgl.LngLat(appData["nearestStops"][0].geometry.coordinates[0], appData["nearestStops"][0].geometry.coordinates[1]))
 
@@ -136,7 +152,35 @@ function showBusStopsAtPoint(point) {
 
 
 function filterBusStops(stop_ids) {
-    map.setFilter('mumbai-bus-stops stop selected', stop_ids.length ? ['in', 'id', ...stop_ids] : null)
+
+
+    toggleFilter('mumbai-bus-stops terminal label', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
+    toggleFilter('mumbai-bus-stops terminal', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
+
+}
+
+function toggleFilter(layer, filter) {
+    let layerFilter = map.getFilter(layer)
+  
+
+    // First wrap existing filter condition in an all sett
+    if (layerFilter[0] !== "all") {
+        layerFilter = ["all", layerFilter]
+    }
+    // Then append new filter condition
+    if (filter) {
+        layerFilter.push(filter)
+    } else {
+        layerFilter.pop()
+    }
+
+    console.log(layerFilter)
+    map.setFilter(layer, layerFilter)
+
+}
+
+function highlightBusStop(stop_id) {
+    map.setFilter('mumbai-bus-stops stop selected', stop_id ? ['in', 'id', stop_id] : null)
 }
 
 function showWalkingRoute(to) {
