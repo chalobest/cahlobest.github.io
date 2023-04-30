@@ -60,9 +60,10 @@ map.on('load', () => {
             'source': 'walking-route',
             'layout': {},
             'paint': {
-                'line-color': 'black',
+                'line-color': 'blue',
                 'line-opacity': 1,
-                'line-width': 2
+                'line-width': 3,
+                'line-dasharray': [1, 1]
             }
         }, 'mumbai-bus-routes label');
     }
@@ -93,7 +94,7 @@ function showBusRoutesAtPoint(point, bufferPixels) {
     ];
     // Find features intersecting the bounding box.
     const selectedFeatures = map.queryRenderedFeatures(bbox, {
-        layers: ['mumbai-bus-routes']
+        layers: ['mumbai-bus-routes','mumbai-bus-routes ac']
     });
 
     const route_ids = selectedFeatures.map(
@@ -103,7 +104,6 @@ function showBusRoutesAtPoint(point, bufferPixels) {
     const stop_ids = selectedFeatures.map(
         (feature) => {
             let stop_ids = feature.properties.stop_id_list.split()
-            stop_ids.push(feature.properties.first_stop_id)
             stop_ids.push(feature.properties.last_stop_id)
             return stop_ids
         }
@@ -116,7 +116,7 @@ function showBusRoutesAtPoint(point, bufferPixels) {
 function filterBusRoutes(route_ids) {
 
     ['mumbai-bus-routes', 'mumbai-bus-routes ac', 'mumbai-bus-routes label', 'mumbai-bus-routes ac label'].forEach(layer =>
-        toggleFilter(layer, route_ids.length ? ["match", ['get', 'id'], [...new Set(route_ids)], true, false] : null)
+        toggleMatchFilter(layer, route_ids.length ? ["match", ['get', 'id'], [...new Set(route_ids)], true, false] : null)
         )
 
         // 'mumbai-bus-routes base' 'mumbai-bus-routes selected'
@@ -125,7 +125,7 @@ function filterBusRoutes(route_ids) {
     // map.setFilter('mumbai-bus-routes label', route_ids.length ? ['in', 'id', ...route_ids] : null)
     // map.setFilter('mumbai-bus-routes ac label', route_ids.length ? ['in', 'id', ...route_ids] : null)
     map.setFilter('mumbai-bus-routes base', route_ids.length ? ['in', 'id', ...route_ids] : null)
-    map.setFilter('mumbai-bus-routes selected', route_ids.length ? ['in', 'id', ...route_ids] : null)
+    map.setFilter('mumbai-bus-routes base selected', route_ids.length ? ['in', 'id', ...route_ids] : null)
 }
 
 
@@ -154,12 +154,12 @@ function showBusStopsAtPoint(point) {
 function filterBusStops(stop_ids) {
 
 
-    toggleFilter('mumbai-bus-stops terminal label', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
-    toggleFilter('mumbai-bus-stops terminal', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
+    toggleMatchFilter('mumbai-bus-stops terminal label', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
+    toggleMatchFilter('mumbai-bus-stops terminal', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
 
 }
 
-function toggleFilter(layer, filter) {
+function toggleMatchFilter(layer, filter) {
     let layerFilter = map.getFilter(layer)
   
 
@@ -170,11 +170,11 @@ function toggleFilter(layer, filter) {
     // Then append new filter condition
     if (filter) {
         layerFilter.push(filter)
-    } else {
+    } else if (layerFilter.slice(-1)[0][0] == "match" ) {
         layerFilter.pop()
     }
 
-    console.log(layerFilter)
+    console.log(layer, map.getFilter(layer), layerFilter)
     map.setFilter(layer, layerFilter)
 
 }
@@ -229,7 +229,7 @@ function findStopEta(stopFeature) {
                 const routeDetail = busRoutes.filter(d => d.properties.id == routeId)[0]
 
                 if (typeof routeDetail == 'undefined') {
-                    console.log('Cannot find detail of route ', routeId, data[routeId])
+                    // console.log('Cannot find detail of route ', routeId, data[routeId])
                     continue
                 }
 
@@ -266,11 +266,10 @@ function findStopEta(stopFeature) {
                 stopTimetable.push(routeObj)
             }
 
-            console.log(stopTimetable.filter(d => d.etas.length).sort((a, b) => b.trip_count - a.trip_count))
+            console.log("Timetable", stopTimetable.filter(d => d.etas.length).sort((a, b) => b.trip_count - a.trip_count))
 
             let etaHtml = `<h2 class="stop uk-margin-remove">${stopFeature.properties.name} <br><small><span id='walking-time'></span></small></h2><br>
             Towards <b>${stopFeature.properties.towards_stop}</b> <hr>`
-            console.log(appData.stopDirections)
             const sortedTimetable = stopTimetable.filter(d => d.etas.length).sort((a, b) => b.trip_count - a.trip_count)
 
             sortedTimetable.forEach(route => {
@@ -293,8 +292,6 @@ function findStopEta(stopFeature) {
             etaHtml += `<h5>Terminating routes</h5>${stopFeature.properties.terminal_route_name_list}`
             etaHtml += `<h5>All routes</h5>${stopFeature.properties.route_name_list}`
             stopEtaDiv.innerHTML = etaHtml
-
-            console.log(stopFeature.properties)
 
         })
         .catch((error) => {
