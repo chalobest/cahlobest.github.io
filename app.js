@@ -16,7 +16,8 @@ const map = new mapboxgl.Map({
     center: [72.86, 19.1], // starting position [lng, lat]
     zoom: 10, // starting zoom
     hash: true,
-    maxBounds: bounds // Set the map's geographical boundaries.
+    maxBounds: bounds, // Set the map's geographical boundaries.
+    worldview: 'IN'
 
 });
 
@@ -74,13 +75,12 @@ map.on('load', () => {
 map.on('moveend', () => {
     if (map.getZoom() > 14) {
         showBusStopsAtPoint()
-        showBusRoutesAtPoint(map.getCenter(), 30)
     }
 })
 
 map.on('click', (e) => {
 
-    showBusRoutesAtPoint(e.point, 30)
+    showBusRoutesAtPoint(e.point, 10)
     showBusStopsAtPoint(e.lngLat)
 
 });
@@ -93,15 +93,15 @@ function showBusRoutesAtPoint(point, bufferPixels) {
         [point.x + bufferPixels, point.y + bufferPixels]
     ];
     // Find features intersecting the bounding box.
-    const selectedFeatures = map.queryRenderedFeatures(bbox, {
+    const busRouteFeatures = map.queryRenderedFeatures(bbox, {
         layers: ['mumbai-bus-routes','mumbai-bus-routes ac']
     });
 
-    const route_ids = selectedFeatures.map(
+    const route_ids = busRouteFeatures.map(
         (feature) => feature.properties.id
     );
 
-    const stop_ids = selectedFeatures.map(
+    const stop_ids = busRouteFeatures.map(
         (feature) => {
             let stop_ids = feature.properties.stop_id_list.split()
             stop_ids.push(feature.properties.last_stop_id)
@@ -109,8 +109,36 @@ function showBusRoutesAtPoint(point, bufferPixels) {
         }
     ).flat(1);
 
+    console.log(busRouteFeatures)
+
+    const terminal_list = {}
+    busRouteFeatures.forEach(f=>{
+        const stop_id = f.properties.last_stop_id
+
+        if ( !(stop_id in terminal_list) ){
+            terminal_list[stop_id] = {}
+            terminal_list[stop_id]['route_list_nonac'] = []
+            terminal_list[stop_id]['route_list_ac'] = []
+            terminal_list[stop_id]['name'] = f.properties.last_stop_name
+        }
+        if (f.properties.ac_service){
+            terminal_list[stop_id]['route_list_ac']
+            terminal_list[stop_id]['route_list_ac'].push(f.properties.name)
+        }else{
+            terminal_list[stop_id]['route_list_nonac'].push(f.properties.name)
+        }
+    })
+    console.log('terminal',terminal_list)
+
     filterBusRoutes(route_ids)
     filterBusStops(stop_ids)
+
+    showTerminalLabels()
+
+    function showTerminalLabels(){
+
+    }
+
 }
 
 function filterBusRoutes(route_ids) {
@@ -119,11 +147,6 @@ function filterBusRoutes(route_ids) {
         toggleMatchFilter(layer, route_ids.length ? ["match", ['get', 'id'], [...new Set(route_ids)], true, false] : null)
         )
 
-        // 'mumbai-bus-routes base' 'mumbai-bus-routes selected'
-    // map.setFilter('mumbai-bus-routes', route_ids.length ? ['in', 'id', ...route_ids] : null)
-    // map.setFilter('mumbai-bus-routes ac', route_ids.length ? ['in', 'id', ...route_ids] : null)
-    // map.setFilter('mumbai-bus-routes label', route_ids.length ? ['in', 'id', ...route_ids] : null)
-    // map.setFilter('mumbai-bus-routes ac label', route_ids.length ? ['in', 'id', ...route_ids] : null)
     map.setFilter('mumbai-bus-routes base', route_ids.length ? ['in', 'id', ...route_ids] : null)
     map.setFilter('mumbai-bus-routes base selected', route_ids.length ? ['in', 'id', ...route_ids] : null)
 }
@@ -136,7 +159,7 @@ function showBusStopsAtPoint(point) {
     }
 
     // Query the 'bus-stop' layer for rendered features
-    let features = map.queryRenderedFeatures({ layers: ['mumbai-bus-stops terminal label', 'mumbai-bus-stops label'] });
+    let features = map.queryRenderedFeatures({ layers: ['mumbai-bus-stops terminal', 'mumbai-bus-stops stop'] });
 
     // Create a list of the nearest bus stops
     features.forEach(f => f.properties["distance"] = turf.distance([point.lng, point.lat], f.geometry.coordinates))
@@ -157,6 +180,7 @@ function filterBusStops(stop_ids) {
     toggleMatchFilter('mumbai-bus-stops terminal label', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
     toggleMatchFilter('mumbai-bus-stops terminal', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
 
+
 }
 
 function toggleMatchFilter(layer, filter) {
@@ -174,13 +198,13 @@ function toggleMatchFilter(layer, filter) {
         layerFilter.pop()
     }
 
-    console.log(layer, map.getFilter(layer), layerFilter)
     map.setFilter(layer, layerFilter)
 
 }
 
 function highlightBusStop(stop_id) {
     map.setFilter('mumbai-bus-stops stop selected', stop_id ? ['in', 'id', stop_id] : null)
+    map.setFilter('mumbai-bus-stops stop label selected', stop_id ? ['in', 'id', stop_id] : null)
 }
 
 function showWalkingRoute(to) {
