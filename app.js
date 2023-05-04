@@ -21,6 +21,63 @@ const map = new mapboxgl.Map({
 
 });
 
+
+function forwardGeocoder(query) {
+
+    // Load custom data to supplement the search results.
+    let stopData = map.queryRenderedFeatures({ layers: ['mumbai-bus-stops terminal', 'mumbai-bus-stops stop'] });
+
+    const matchingFeatures = [];
+    for (const feature of stopData) {
+        // Handle queries with different capitalization
+        // than the source data by calling toLowerCase().
+        if (
+            feature.properties.name
+                .toLowerCase()
+                .includes(query.toLowerCase())
+        ) {
+            feature['place_name'] = `🚏 ${feature.properties.name}`;
+            feature['center'] = feature.geometry.coordinates;
+            feature['place_type'] = ['stop'];
+            // Dedupe duplicate stop names
+            console.log(matchingFeatures, feature['place_name'],matchingFeatures.filter(f => f.properties.place_name !== feature['place_name']))
+            if (!matchingFeatures.filter(f => f.properties.name == feature.properties.name).length)
+                matchingFeatures.push(feature);
+        }
+    }
+    return matchingFeatures;
+}
+
+// Add the control to the map.
+const geocoder = new MapboxGeocoder({
+    accessToken: mapboxgl.accessToken,
+    mapboxgl: mapboxgl,
+    localGeocoder: forwardGeocoder,
+    countries: 'in',
+    placeholder: "Search for a location or bus route.",
+    bbox: [72.39674, 18.82311, 73.41535, 19.44571],
+    // Apply a client-side filter to further limit results
+    // to those strictly within Mumbai region.
+    filter: function (item) {
+
+        if ('context' in item) {
+            return item.context.some((i) => {
+                return (
+                    i.id.split('.').shift() === 'district' &&
+                    ['Mumbai City', 'Mumbai Suburban', 'Thane'].indexOf(i.text) > -1
+                )
+            })
+        }
+        else
+            return true
+
+    },
+});
+
+
+
+document.getElementById('geocoder').appendChild(geocoder.onAdd(map));
+
 // Add geolocate control to the map.
 const geolocate =
     new mapboxgl.GeolocateControl({
@@ -87,14 +144,13 @@ map.on('click', (e) => {
 
 function showBusRoutesAtPoint(point, bufferPixels) {
 
-    // Set `bbox` as 5px reactangle area around clicked point.
     const bbox = [
         [point.x - bufferPixels, point.y - bufferPixels],
         [point.x + bufferPixels, point.y + bufferPixels]
     ];
     // Find features intersecting the bounding box.
     const busRouteFeatures = map.queryRenderedFeatures(bbox, {
-        layers: ['mumbai-bus-routes','mumbai-bus-routes ac']
+        layers: ['mumbai-bus-routes', 'mumbai-bus-routes ac']
     });
 
     const route_ids = busRouteFeatures.map(
@@ -109,33 +165,32 @@ function showBusRoutesAtPoint(point, bufferPixels) {
         }
     ).flat(1);
 
-    console.log(busRouteFeatures)
-
     const terminal_list = {}
-    busRouteFeatures.forEach(f=>{
+    busRouteFeatures.forEach(f => {
         const stop_id = f.properties.last_stop_id
 
-        if ( !(stop_id in terminal_list) ){
+        if (!(stop_id in terminal_list)) {
             terminal_list[stop_id] = {}
             terminal_list[stop_id]['route_list_nonac'] = []
             terminal_list[stop_id]['route_list_ac'] = []
             terminal_list[stop_id]['name'] = f.properties.last_stop_name
         }
-        if (f.properties.ac_service){
-            terminal_list[stop_id]['route_list_ac']
+        if (f.properties.ac_service) {
             terminal_list[stop_id]['route_list_ac'].push(f.properties.name)
-        }else{
+        } else {
             terminal_list[stop_id]['route_list_nonac'].push(f.properties.name)
         }
     })
-    console.log('terminal',terminal_list)
+
+
+    console.log('terminal', terminal_list)
 
     filterBusRoutes(route_ids)
     filterBusStops(stop_ids)
 
     showTerminalLabels()
 
-    function showTerminalLabels(){
+    function showTerminalLabels() {
 
     }
 
@@ -145,7 +200,7 @@ function filterBusRoutes(route_ids) {
 
     ['mumbai-bus-routes', 'mumbai-bus-routes ac', 'mumbai-bus-routes label', 'mumbai-bus-routes ac label'].forEach(layer =>
         toggleMatchFilter(layer, route_ids.length ? ["match", ['get', 'id'], [...new Set(route_ids)], true, false] : null)
-        )
+    )
 
     map.setFilter('mumbai-bus-routes base', route_ids.length ? ['in', 'id', ...route_ids] : null)
     map.setFilter('mumbai-bus-routes base selected', route_ids.length ? ['in', 'id', ...route_ids] : null)
@@ -185,7 +240,7 @@ function filterBusStops(stop_ids) {
 
 function toggleMatchFilter(layer, filter) {
     let layerFilter = map.getFilter(layer)
-  
+
 
     // First wrap existing filter condition in an all sett
     if (layerFilter[0] !== "all") {
@@ -194,7 +249,7 @@ function toggleMatchFilter(layer, filter) {
     // Then append new filter condition
     if (filter) {
         layerFilter.push(filter)
-    } else if (layerFilter.slice(-1)[0][0] == "match" ) {
+    } else if (layerFilter.slice(-1)[0][0] == "match") {
         layerFilter.pop()
     }
 
