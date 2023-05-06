@@ -137,7 +137,7 @@ map.on('moveend', () => {
 
 map.on('click', (e) => {
 
-    showBusRoutesAtPoint(e.point, 10)
+    // showBusRoutesAtPoint(e.point, 10)
     showBusStopsAtPoint(e.lngLat)
 
 });
@@ -226,9 +226,24 @@ function showBusStopsAtPoint(point) {
 
     function displayStopInfo(stop_feature) {
 
+
         // Find routes passing through stop
-        let features = map.queryRenderedFeatures({ layers: ['mumbai-bus-routes', 'mumbai-bus-routes ac'] });
-        console.log(features)
+        // let routeFeatures = map.queryRenderedFeatures({ layers: ['mumbai-bus-routes', 'mumbai-bus-routes ac'] });
+
+        let routeFeatures = map.querySourceFeatures('composite', {
+            sourceLayer: 'mumbai_bus_routes',
+            filter: ["in",stop_feature.properties.id,["get","stop_id_list"]]
+            });
+
+            // routeFeatures.filter(route => route.properties.stop_id_list.includes(stop_feature.properties.id))
+
+        // routeFeatures.filter(route => route.properties.stop_id_list.includes(stop_feature.properties.id))
+
+        const route_ids = routeFeatures.map( route => route.properties.id )
+
+        console.log(route_ids)
+
+        filterBusRoutes(route_ids)
 
         // Update HTML with stop information
         const headerDiv = document.querySelector('article header')
@@ -244,7 +259,7 @@ function showBusStopsAtPoint(point) {
             routeHTML += `<li id="${route}" class="route">${route}</li>`
         })
         routeHTML += `</ul>`
-        sectionDiv.insertAdjacentHTML('beforeend', routeHTML)
+        sectionDiv.innerHTML = routeHTML
 
         showWalkingRoute(new mapboxgl.LngLat(stopFeature.geometry.coordinates[0], stopFeature.geometry.coordinates[1]))
         findStopEta(stopFeature)
@@ -254,29 +269,29 @@ function showBusStopsAtPoint(point) {
 
 function filterBusStops(stop_ids) {
 
-
     toggleMatchFilter('mumbai-bus-stops terminal label', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
     toggleMatchFilter('mumbai-bus-stops terminal', stop_ids.length ? ["match", ['get', 'id'], [...new Set(stop_ids)], true, false] : null)
-
 
 }
 
 function toggleMatchFilter(layer, filter) {
     let layerFilter = map.getFilter(layer)
 
-
-    // First wrap existing filter condition in an all sett
+    // First wrap existing filter condition in an all set if needed
     if (layerFilter[0] !== "all") {
         layerFilter = ["all", layerFilter]
     }
     // Then append new filter condition
-    if (filter) {
-        layerFilter.push(filter)
+    if (filter && layerFilter.slice(-1)[0][0] == "match") {
+        layerFilter[layerFilter.length - 1] = filter
     } else if (layerFilter.slice(-1)[0][0] == "match") {
         layerFilter.pop()
+    } else if (filter) {
+        layerFilter.push(filter)
     }
 
     map.setFilter(layer, layerFilter)
+    console.log(layer, map.getFilter(layer),layerFilter)
 
 }
 
