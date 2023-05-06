@@ -40,7 +40,6 @@ function forwardGeocoder(query) {
             feature['center'] = feature.geometry.coordinates;
             feature['place_type'] = ['stop'];
             // Dedupe duplicate stop names
-            console.log(matchingFeatures, feature['place_name'], matchingFeatures.filter(f => f.properties.place_name !== feature['place_name']))
             if (!matchingFeatures.filter(f => f.properties.name == feature.properties.name).length)
                 matchingFeatures.push(feature);
         }
@@ -137,7 +136,6 @@ map.on('moveend', () => {
 
 map.on('click', (e) => {
 
-    // showBusRoutesAtPoint(e.point, 10)
     showBusStopsAtPoint(e.lngLat)
 
 });
@@ -212,7 +210,9 @@ function showBusStopsAtPoint(point) {
     }
 
     // Query the 'bus-stop' layer for rendered features
-    let features = map.queryRenderedFeatures({ layers: ['mumbai-bus-stops terminal', 'mumbai-bus-stops stop'] });
+    let features = map.querySourceFeatures('composite',{ 
+        sourceLayer: 'mumbai_bus_stops' 
+    });
 
     // Create a list of the nearest bus stops
     features.forEach(f => f.properties["distance"] = turf.distance([point.lng, point.lat], f.geometry.coordinates))
@@ -241,8 +241,6 @@ function showBusStopsAtPoint(point) {
 
         const route_ids = routeFeatures.map( route => route.properties.id )
 
-        console.log(route_ids)
-
         filterBusRoutes(route_ids)
 
         // Update HTML with stop information
@@ -261,7 +259,8 @@ function showBusStopsAtPoint(point) {
         routeHTML += `</ul>`
         sectionDiv.innerHTML = routeHTML
 
-        showWalkingRoute(new mapboxgl.LngLat(stopFeature.geometry.coordinates[0], stopFeature.geometry.coordinates[1]))
+        if(geolocate._watchState !== 'OFF')
+         showWalkingRoute(new mapboxgl.LngLat(stopFeature.geometry.coordinates[0], stopFeature.geometry.coordinates[1]))
         findStopEta(stopFeature)
     }
 }
@@ -291,7 +290,6 @@ function toggleMatchFilter(layer, filter) {
     }
 
     map.setFilter(layer, layerFilter)
-    console.log(layer, map.getFilter(layer),layerFilter)
 
 }
 
@@ -302,7 +300,10 @@ function highlightBusStop(stop_id) {
 
 function showWalkingRoute(to) {
 
-    const from = map.getCenter()
+    const from ={ 
+        lng: geolocate._lastKnownPosition.coords.longitude,
+        lat: geolocate._lastKnownPosition.coords.latitude
+    }
 
     // https://docs.mapbox.com/playground/directions/
     const mapboxDirectionsUrl = `https://api.mapbox.com/directions/v5/mapbox/walking/${from.lng},${from.lat};${to.lng},${to.lat}?alternatives=true&continue_straight=true&geometries=geojson&language=en&overview=simplified&steps=true&access_token=${mapboxgl.accessToken}`
