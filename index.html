@@ -32,9 +32,6 @@
             background-image: url(./assets/background.jpg);
         }
 
-  
-
-
         #map-container {
             position: fixed;
             top: 0;
@@ -72,24 +69,24 @@
             pointer-events: none;
         }
 
-        #content {
+        article {
             position: relative;
             background-color: #ffffff;
-            padding: 16px 20px;
             margin-top: 480px;
             z-index: 1000;
             font-size: 1rem;
         }
 
-        #content>div {
-            padding: 0 10px
+        article>* {
+            padding: 8px;
         }
 
-        #content li span {
+
+        article li span {
             margin-left: 5px;
         }
 
-        #content li span:first-child {
+        article li span:first-child {
             font-weight: bold;
         }
 
@@ -106,6 +103,10 @@
             min-width: 100%;
         }
 
+        #walking-time {
+            font-size: 12px;
+        }
+
         @media screen and (min-width: 600px) {
             body {
                 display: flex;
@@ -114,7 +115,7 @@
                 align-items: stretch;
             }
 
-            #content {
+            article {
                 width: 400px;
                 overflow: auto;
                 margin-top: 0;
@@ -130,7 +131,7 @@
 
 
         @media screen and (min-width: 1000px) {
-            #content {
+            article {
                 width: 500px;
             }
         }
@@ -143,17 +144,22 @@
     <div id="map-container">
         <div id="geocoder" class="geocoder"></div>
         <div id="map">
-            <div id="map-overlay">Click location to view stops</div>
+            <div id="map-overlay"></div>
             <div id="map-crosshair"></div>
         </div>
     </div>
-    <div id="content">
+    <article id="content">
+
+        <header>
+            BEST Bus Route Explorer
+        </header>
 
         <div id="stop-eta">
-            <h3 class="stop">BEST Bus Route Explorer</h4>
-                Select bus stop to view upcoming arrivals
+
         </div>
-    </div>
+        <section>
+        </section>
+    </article>
 
 
 

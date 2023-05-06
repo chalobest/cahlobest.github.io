@@ -40,7 +40,7 @@ function forwardGeocoder(query) {
             feature['center'] = feature.geometry.coordinates;
             feature['place_type'] = ['stop'];
             // Dedupe duplicate stop names
-            console.log(matchingFeatures, feature['place_name'],matchingFeatures.filter(f => f.properties.place_name !== feature['place_name']))
+            console.log(matchingFeatures, feature['place_name'], matchingFeatures.filter(f => f.properties.place_name !== feature['place_name']))
             if (!matchingFeatures.filter(f => f.properties.name == feature.properties.name).length)
                 matchingFeatures.push(feature);
         }
@@ -183,8 +183,6 @@ function showBusRoutesAtPoint(point, bufferPixels) {
     })
 
 
-    console.log('terminal', terminal_list)
-
     filterBusRoutes(route_ids)
     filterBusStops(stop_ids)
 
@@ -220,12 +218,37 @@ function showBusStopsAtPoint(point) {
     features.forEach(f => f.properties["distance"] = turf.distance([point.lng, point.lat], f.geometry.coordinates))
     appData["nearestStops"] = features.sort((a, b) => a.properties.distance - b.properties.distance).slice(0, 10)
 
-    highlightBusStop(appData["nearestStops"][0].properties.id)
+    const stopFeature = appData["nearestStops"][0]
 
-    showWalkingRoute(new mapboxgl.LngLat(appData["nearestStops"][0].geometry.coordinates[0], appData["nearestStops"][0].geometry.coordinates[1]))
+    highlightBusStop(stopFeature.properties.id)
 
-    findStopEta(appData["nearestStops"][0])
+    displayStopInfo(stopFeature)
 
+    function displayStopInfo(stop_feature) {
+
+        // Find routes passing through stop
+        let features = map.queryRenderedFeatures({ layers: ['mumbai-bus-routes', 'mumbai-bus-routes ac'] });
+        console.log(features)
+
+        // Update HTML with stop information
+        const headerDiv = document.querySelector('article header')
+        let stopHTML = `<h3 class="stop uk-margin-remove">${stopFeature.properties.name} <small><span id='walking-time'></span></small></h3>`
+        stopHTML += `-> ${stopFeature.properties.towards_stop.split(';').join(', ')}`
+        headerDiv.innerHTML = stopHTML
+
+        const routeList = stopFeature.properties.route_name_list.split(';')
+
+        const sectionDiv = document.querySelector('article section')
+        let routeHTML = `<ul class="uk-list uk-list-divider">`
+        routeList.forEach(route => {
+            routeHTML += `<li id="${route}" class="route">${route}</li>`
+        })
+        routeHTML += `</ul>`
+        headerDiv.insertAdjacentHTML('beforeend', routeHTML)
+
+        showWalkingRoute(new mapboxgl.LngLat(stopFeature.geometry.coordinates[0], stopFeature.geometry.coordinates[1]))
+        findStopEta(stopFeature)
+    }
 }
 
 
@@ -292,7 +315,7 @@ function findStopEta(stopFeature) {
             // Find all routes in map view
             // Find features intersecting the bounding box.
             const busRoutes = map.queryRenderedFeatures({
-                layers: ['mumbai-bus-routes']
+                layers: ['mumbai-bus-routes', 'mumbai-bus-routes ac']
             });
 
             let stopTimetable = []
@@ -347,8 +370,7 @@ function findStopEta(stopFeature) {
 
             console.log("Timetable", stopTimetable.filter(d => d.etas.length).sort((a, b) => b.trip_count - a.trip_count))
 
-            let etaHtml = `<h2 class="stop uk-margin-remove">${stopFeature.properties.name} <br><small><span id='walking-time'></span></small></h2><br>
-            Towards <b>${stopFeature.properties.towards_stop}</b> <hr>`
+            let etaHtml = ''
             const sortedTimetable = stopTimetable.filter(d => d.etas.length).sort((a, b) => b.trip_count - a.trip_count)
 
             sortedTimetable.forEach(route => {
@@ -364,12 +386,9 @@ function findStopEta(stopFeature) {
 
                 })
 
-                etaHtml += `</div><hr>`
+                etaHtml += `</div>`
 
             })
-
-            etaHtml += `<h5>Terminating routes</h5>${stopFeature.properties.terminal_route_name_list}`
-            etaHtml += `<h5>All routes</h5>${stopFeature.properties.route_name_list}`
             stopEtaDiv.innerHTML = etaHtml
 
         })
