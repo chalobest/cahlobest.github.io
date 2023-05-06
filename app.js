@@ -244,7 +244,7 @@ function showBusStopsAtPoint(point) {
             routeHTML += `<li id="${route}" class="route">${route}</li>`
         })
         routeHTML += `</ul>`
-        headerDiv.insertAdjacentHTML('beforeend', routeHTML)
+        sectionDiv.insertAdjacentHTML('beforeend', routeHTML)
 
         showWalkingRoute(new mapboxgl.LngLat(stopFeature.geometry.coordinates[0], stopFeature.geometry.coordinates[1]))
         findStopEta(stopFeature)
